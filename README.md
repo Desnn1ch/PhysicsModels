@@ -122,3 +122,5 @@ $$
 - Lib:
   - numpy
   - matplotlib
+
+![site](https://github.com/Desnn1ch/PhysicsModels/blob/model_1/example.png)
