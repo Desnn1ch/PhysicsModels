@@ -1,91 +1,104 @@
-import numpy as np
+import math
 import matplotlib.pyplot as plt
+import numpy as np
 
-GRAVITY = 1.62
-MASS_CRAFT = 2150
-FUEL_INITIAL = 150
-EXHAUST_VELOCITY = 3660
-FUEL_FLOW_RATE = 15
-INITIAL_VELOCITY = 76
-INITIAL_HEIGHT = 280
-LANDING_SPEED_LIMIT = -3
+V_0_y = 76
+H_0 = 280
 
-TIME_STEP = 0.001
+class CrashSimulation:
+    def __init__(self, mass_main=2150, gravity=1.62, exhaust_velocity=3660, fuel_mass=150, fuel_ejection_rate=15):
+        self.M = mass_main
+        self.g = gravity
+        self.V_p = exhaust_velocity
+        self.m = fuel_mass
+        self.V_m = fuel_ejection_rate
+        self.V_0_y = V_0_y
+        self.H_0 = H_0
+        self.V_0 = 0
+        self.h_criticalspeed = 0
+        self.t = 0
+        self.t_0 = 0
 
-t_podema = INITIAL_VELOCITY / GRAVITY
-H_max = INITIAL_HEIGHT + INITIAL_VELOCITY * t_podema - 0.5 * GRAVITY * t_podema**2
+    def calculate_t_0(self):
+        self.t_0 = (self.V_0 - self.V_0_y) / self.g
+        return self.t_0
 
-v_i = -((2 * GRAVITY * (H_max - INITIAL_HEIGHT))**0.5)
-delta_v = LANDING_SPEED_LIMIT - v_i
-burn_duration = delta_v / (EXHAUST_VELOCITY * (FUEL_FLOW_RATE / (MASS_CRAFT + FUEL_INITIAL)) - GRAVITY)
-fuel_required = FUEL_FLOW_RATE * burn_duration
+    def calculate_height(self, t):
+        initial_term = self.H_0 + (self.V_0_y ** 2 / (2 * self.g))
+        dynamic_term = self.V_m / ((self.m + self.M) * math.log((self.m + self.M - self.V_m * t) / (self.m + self.M)))
+        velocity_term = self.V_p + (self.V_m * (self.V_p * t) + (self.g * t**2) / 2) / ((self.m + self.M) * math.log((self.m + self.M - self.V_m * t) / (self.m + self.M)))
+        discriminant = 2 * self.g
 
-H_s = H_max - ((abs(v_i + LANDING_SPEED_LIMIT))**2) / (2 * GRAVITY)
-print(f"Входная скорость: {abs(v_i):.2f} м/с, Максимальная высота: {H_max:.2f} м, Высота включения двигателя: {H_s:.2f} м")
+        h1 = ((2 * dynamic_term * velocity_term - discriminant) + \
+              math.sqrt((2 * dynamic_term * velocity_term - discriminant)**2 - 4 * (dynamic_term**2) * ((velocity_term**2) - discriminant * initial_term))) / (2 * (dynamic_term**2))
 
-time_data = []
-height_data = []
-velocity_data = []
-acceleration_data = []
+        h2 = ((2 * dynamic_term * velocity_term - discriminant) - \
+              math.sqrt((2 * dynamic_term * velocity_term - discriminant)**2 - 4 * (dynamic_term**2) * ((velocity_term**2) - discriminant * initial_term))) / (2 * (dynamic_term**2))
 
-current_time = 0
-current_height = INITIAL_HEIGHT
-current_velocity = INITIAL_VELOCITY
-current_mass = MASS_CRAFT + FUEL_INITIAL
-engine_active = False
-remaining_fuel = FUEL_INITIAL
+        return h1 if 0 < h1 < self.H_0 else h2
 
-while current_height > -100:
-    if not engine_active and current_height <= H_s:
-        print(f"Двигатель включён на высоте {abs(current_height):.2f}м")
-        engine_active = True
+    def calculate_velocity(self, t):
+        height_at_t = self.calculate_height(t)
+        return math.sqrt(self.V_0_y**2 + 2 * self.g * (self.H_0 - height_at_t)) + \
+               self.g * t + \
+               t * self.V_m * (math.sqrt(self.V_0_y**2 + 2 * self.g * (self.H_0 - height_at_t)) - self.V_p) / (self.m + self.M - self.V_m * t)
 
-    if engine_active and remaining_fuel > 0:
-        fuel_used = min(FUEL_FLOW_RATE * TIME_STEP, remaining_fuel)
-        remaining_fuel -= fuel_used
-        current_mass -= fuel_used
+    def find_initial_conditions(self):
+        for t in np.linspace(0.001, 10, 10000):
+            h_test = self.calculate_height(t)
+            velocity_test = self.calculate_velocity(t)
+            if 0 < h_test <= self.H_0 and 0 <= velocity_test <= 3:
+                self.V_0 = math.sqrt(self.V_0_y**2 + 2 * self.g * (self.H_0 - h_test))
+                self.h_criticalspeed = h_test
+                self.t = t
+                return f"h = {h_test:.2f}, v = {velocity_test:.2f}, t = {t:.2f}"
 
-        thrust = EXHAUST_VELOCITY * FUEL_FLOW_RATE
-        acceleration = thrust / current_mass - GRAVITY
-    else:
-        acceleration = -GRAVITY
+    def velocity(self, t):
+        if t < self.t_0:
+            return self.V_0_y + self.g * t
+        return self.V_0 + self.g * (t - self.t_0) + (t - self.t_0) * self.V_m * (self.V_0 - self.V_p) / (self.m + self.M - self.V_m * (t - self.t_0))
 
-    current_velocity += acceleration * TIME_STEP
-    current_height += current_velocity * TIME_STEP
+    def acceleration(self, t):
+        if t < self.t_0:
+            return self.g
+        return ((self.m + self.M) * self.V_m * (self.V_0 - self.V_p)) / ((self.m + self.M - self.V_m * (t - self.t_0))**2) + self.g
 
-    time_data.append(current_time)
-    height_data.append(max(0, current_height))
-    velocity_data.append(current_velocity)
-    acceleration_data.append(acceleration)
+    def height(self, t):
+        if t < self.t_0:
+            return self.H_0 - (self.V_0_y * t + self.g * t**2 / 2)
+        return self.h_criticalspeed - self.calculate_height(t - self.t_0)
 
-    current_time += TIME_STEP
 
-    if current_height <= 0:
-        break
+simulation = CrashSimulation()
+initial_conditions = simulation.find_initial_conditions()
+simulation.calculate_t_0()
 
-time_data = np.array(time_data)
-height_data = np.array(height_data)
-velocity_data = np.array(velocity_data)
-acceleration_data = np.array(acceleration_data)
+time_points = np.linspace(0, simulation.t_0 + simulation.t, 10000)
+accelerations = [simulation.acceleration(t) for t in time_points]
+velocities = [simulation.velocity(t) for t in time_points]
+heights = [simulation.height(t) for t in time_points]
+
+print(f"Итоговые условия: {initial_conditions}")
+print(f"Финальная скорость: {simulation.velocity(time_points[-1]):.2f} м/с")
 
 plt.figure(figsize=(12, 8))
 
 plt.subplot(3, 1, 1)
-plt.plot(time_data, height_data, label="Высота")
+plt.plot(time_points, heights, label="Высота", color="blue")
 plt.title("Высота от времени")
 plt.xlabel("Время, с")
 plt.ylabel("Высота, м")
 plt.grid(True)
 
 plt.subplot(3, 1, 2)
-plt.plot(time_data, velocity_data, label="Скорость", color="orange")
+plt.plot(time_points, velocities, label="Скорость", color="orange")
 plt.title("Скорость от времени")
 plt.xlabel("Время, с")
 plt.ylabel("Скорость, м/с")
 plt.grid(True)
 
 plt.subplot(3, 1, 3)
-plt.plot(time_data, acceleration_data, label="Ускорение", color="green")
+plt.plot(time_points, accelerations, label="Ускорение", color="green")
 plt.title("Ускорение от времени")
 plt.xlabel("Время, с")
 plt.ylabel("Ускорение, м/с^2")
