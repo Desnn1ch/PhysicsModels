@@ -20,6 +20,7 @@ class Model:
         self.position = h
         self.velocity_y = 0
         self.precision = 11
+        #напряжение зависит от Q и если у нас тело оно вылетит за пределы конденсатора, то мы уменьшаем напряжение U -> уменьшить Q
         self.charge = 1
 
     def voltage(self):
