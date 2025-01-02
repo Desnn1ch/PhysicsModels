@@ -12,7 +12,7 @@
 
 ## Вычисления
 В ходе отрисовки графиков можно отбросить g, грубо говоря это простая константа, а нас интересует динамическое поведение частицы в конденсаторе
-![site](https://github.com/Desnn1ch/PhysicsModels/blob/model_1/formulas.png)
+![site](https://github.com/Desnn1ch/PhysicsModels/blob/model_2/formulas.png)
 
 ### Константы
 
@@ -27,7 +27,7 @@
 - `delta_t`: Шаг времени для симуляции.
 
 ### Результат
-![site](https://github.com/Desnn1ch/PhysicsModels/blob/model_1/example.png)
+![site](https://github.com/Desnn1ch/PhysicsModels/blob/model_2/example.png)
 
 1. **Итоговые значения:**
    - Минимальное напряжениe
